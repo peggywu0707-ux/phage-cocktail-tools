@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whiteson Lab Phage Cocktail Pipeline Demo</title>
+<style>
+:root {
+  --bg:#f7f9fc; --card:#ffffff; --ink:#172033; --muted:#596579; --line:#d9e0ea;
+  --accent:#0f766e; --accent2:#2563eb; --warn:#b45309; --soft:#e6f4f1; --soft2:#eaf1ff;
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--ink); }
+header { padding:28px 36px 18px; background:linear-gradient(135deg,#ffffff,#eaf1ff); border-bottom:1px solid var(--line); }
+h1 { margin:0 0 8px; font-size:32px; }
+h2 { margin:0 0 14px; font-size:22px; }
+h3 { margin:0 0 8px; font-size:17px; }
+p { line-height:1.45; }
+.small { color:var(--muted); font-size:14px; }
+.badge { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px; background:var(--soft); color:var(--accent); border:1px solid #b9ded7; }
+.warning { background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; }
+main { padding:22px 36px 36px; max-width:1500px; margin:0 auto; }
+.grid { display:grid; grid-template-columns:1.3fr 0.9fr; gap:18px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; box-shadow:0 6px 18px rgba(20,35,60,0.06); }
+.flow { display:flex; gap:10px; overflow-x:auto; padding:6px 2px 14px; }
+.step { min-width:178px; border:1px solid var(--line); border-radius:14px; padding:12px; background:#fff; cursor:pointer; position:relative; }
+.step.current { border:3px solid var(--accent); background:var(--soft); }
+.step.next { border:2px dashed var(--accent2); background:var(--soft2); }
+.step.conditional { border:2px dashed #7c3aed; }
+.step .num { font-size:13px; font-weight:800; color:var(--muted); }
+.step .title { font-weight:800; margin-top:6px; }
+.step .tag { margin-top:8px; font-size:11px; color:var(--muted); }
+.arrow { align-self:center; color:#9aa6b2; font-size:22px; }
+.controls { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.checks label { display:block; margin:8px 0; }
+input[type="checkbox"] { transform:scale(1.1); margin-right:8px; }
+button { border:0; background:var(--accent); color:white; padding:10px 13px; border-radius:10px; font-weight:700; cursor:pointer; }
+button.secondary { background:#334155; }
+.tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+table { width:100%; border-collapse:collapse; background:#fff; }
+th,td { border-bottom:1px solid var(--line); padding:9px 10px; text-align:left; vertical-align:top; font-size:13px; }
+th { background:#f1f5f9; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+tr:last-child td { border-bottom:0; }
+.matrix td, .matrix th { text-align:center; }
+.matrix th:first-child, .matrix td:first-child { text-align:left; }
+.cell1 { background:#dcfce7; font-weight:800; color:#14532d; }
+.cell0 { background:#f8fafc; color:#94a3b8; }
+.status-pass { color:#15803d; font-weight:800; }
+.status-warn { color:#b45309; font-weight:800; }
+.status-unknown { color:#475569; font-weight:800; }
+.kpirow { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 0 18px; }
+.kpi { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px; }
+.kpi .v { font-size:26px; font-weight:900; }
+.timelineNote { border-left:5px solid var(--accent); padding:10px 12px; background:#f8fffd; border-radius:8px; }
+footer { margin-top:26px; color:var(--muted); font-size:12px; }
+@media (max-width:1000px) { .grid { grid-template-columns:1fr; } .kpirow { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <span class="badge">DEMO ONLY - replace mock data with Whiteson Lab data</span>
+  <h1>Whiteson Lab Phage Cocktail Pipeline Demo</h1>
+  <p class="small">A clickable demonstration page for lab meeting discussion. It starts at the realistic current bottleneck: unknown phage-library sequencing status.</p>
+</header>
+<main>
+  <section class="card">
+    <h2>Pipeline map: click a step</h2>
+    <p class="timelineNote"><b>You are here:</b> Step 0, Inventory and sequencing-status audit. Because the lab library sequencing status is not yet known, this demo intentionally begins before host-range optimization.</p>
+    <div id="flow" class="flow"></div>
+    <div id="stepDetails" class="card" style="box-shadow:none; margin-top:12px; background:#fbfdff"></div>
+  </section>
+
+  <div class="grid" style="margin-top:18px;">
+    <section class="card">
+      <h2>Data readiness checklist</h2>
+      <p class="small">Toggle these items to see which pipeline step should be active. For the present situation, keep sequencing status unchecked.</p>
+      <div class="checks">
+        <label><input type="checkbox" id="hasInventory" checked>We have a phage ID list / freezer inventory</label>
+        <label><input type="checkbox" id="hasSeqStatus">We know which phages have completed sequencing</label>
+        <label><input type="checkbox" id="hasFastas">We have phage genome FASTA files and QC labels</label>
+        <label><input type="checkbox" id="hasMatrix">We have a standardized host-range matrix</label>
+        <label><input type="checkbox" id="hasCurves">We have PKA / quantitative killing curves</label>
+        <label><input type="checkbox" id="hasTargetGenome">We have target bacterial isolate genomes</label>
+      </div>
+      <div id="readinessResult" class="timelineNote" style="margin-top:12px;"></div>
+    </section>
+
+    <section class="card">
+      <h2>Tool routing logic</h2>
+      <div class="tablewrap"><table id="toolMap"></table></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:18px;">
+    <h2>Mock phage-library inventory</h2>
+    <p class="small">This is fake data for demonstration. The real first deliverable would be the same table populated with Whiteson Lab phage IDs, freezer locations, genome files, and QC labels.</p>
+    <div class="kpirow">
+      <div class="kpi"><div class="small">Demo phages</div><div class="v" id="kPhages"></div></div>
+      <div class="kpi"><div class="small">Sequenced</div><div class="v" id="kSeq"></div></div>
+      <div class="kpi"><div class="small">QC pass</div><div class="v" id="kPass"></div></div>
+      <div class="kpi"><div class="small">Unknown sequencing</div><div class="v" id="kUnknown"></div></div>
+    </div>
+    <div class="controls">
+      <button onclick="filterPhages('all')">Show all</button>
+      <button class="secondary" onclick="filterPhages('needsSeq')">Needs sequencing audit</button>
+      <button class="secondary" onclick="filterPhages('ready')">Ready for matrix optimizer</button>
+    </div>
+    <div class="tablewrap"><table id="phageTable"></table></div>
+  </section>
+
+  <section class="card" style="margin-top:18px;">
+    <h2>Mock infection matrix and baseline cocktail demo</h2>
+    <p class="small">This mini-optimizer uses a transparent greedy coverage rule on fake binary data. It is not a final scientific method; it is a teaching widget showing how Step 3 follows Step 2.</p>
+    <div class="controls">
+      <button onclick="suggestCocktail()">Suggest baseline cocktail</button>
+      <button class="secondary" onclick="resetCocktail()">Reset</button>
+    </div>
+    <div class="grid">
+      <div class="tablewrap"><table id="matrixTable" class="matrix"></table></div>
+      <div class="card" style="box-shadow:none;background:#fbfdff;">
+        <h3>Baseline result</h3>
+        <div id="cocktailResult" class="small">Click "Suggest baseline cocktail" to run the demo.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:18px;">
+    <h2>How this becomes a real lab wiki</h2>
+    <ol>
+      <li><b>Create the phage-library inventory table</b>: phage ID, species, host strain, freezer box, sequencing status, FASTA path, QC status, receptor hints, notes.</li>
+      <li><b>Add the host-range matrix</b>: isolates as columns, phages as rows; keep both binary calls and quantitative metrics when available.</li>
+      <li><b>Link each pipeline step to data objects</b>: each step should show required input, responsible person, output file, and decision rule.</li>
+      <li><b>Use this page as the demo shell</b>: replace the embedded mock arrays with exported CSV/JSON from the lab wiki.</li>
+    </ol>
+  </section>
+
+  <footer>
+    Evidence basis: the workflow follows the layered strategy used in the uploaded analysis and slide material: matrix baseline, resistance/interaction filtering, genome-guided triage, and biological-context validation. The current Step 0 was added because the lab-specific sequencing inventory is unknown.
+  </footer>
+</main>
+<script>
+const steps = [{"id": "0", "title": "Inventory and sequencing-status audit", "short": "Inventory audit", "status": "current", "why": "You do not yet know which phages in the lab library have completed sequencing. This is the safest starting point for a lab demo.", "inputs": "Existing phage names, source/host, freezer location, sequencing status, genome FASTA availability, known QC notes.", "outputs": "A cleaned phage-library table and a list of phages needing WGS or re-QC.", "tools": "Lab wiki table, shared CSV, freezer inventory, sequencing metadata folder."}, {"id": "1", "title": "Genome safety QC for phages", "short": "Phage genome QC", "status": "next", "why": "Before therapeutic or translational use, phage genomes should be checked for lysogeny, toxin genes, AMR genes, and annotation quality.", "inputs": "Phage FASTA files, assembly metrics, annotation output.", "outputs": "QC pass/fail/needs review labels; receptor or tail-fiber hints when available.", "tools": "Pharokka, Bakta/RAST/DFAST, AMR/toxin screening, manual curation."}, {"id": "2", "title": "Standardized susceptibility matrix", "short": "Host-range matrix", "status": "planned", "why": "Coverage-first tools require a phage-by-isolate infection matrix. This is the shared benchmark layer.", "inputs": "Clinical isolates, phage stocks, standardized assay conditions, spot/EOP/PKA results.", "outputs": "Binary and quantitative host-range matrices.", "tools": "DST/EOP, PKA, 96-well growth curves, shared matrix file."}, {"id": "3", "title": "Transparent baseline optimizer", "short": "Baseline optimizer", "status": "planned", "why": "Run explainable matrix tools first so everyone can understand the baseline cocktail.", "inputs": "Binary host-range matrix.", "outputs": "Minimal or maximum-coverage candidate cocktails.", "tools": "Abedon calculators, PhageCocktail R/Cytoscape, PBIN-style logic."}, {"id": "4", "title": "Resistance and interaction filtering", "short": "Biology-aware filter", "status": "planned", "why": "A best-coverage cocktail may still be poor if phages are antagonistic or share the same resistance route.", "inputs": "PKA curves, repeat-exposure data, cross-resistance matrix, receptor evidence, phage-phage interaction matrix.", "outputs": "Filtered cocktail candidates with lower escape or antagonism risk.", "tools": "PKA/Virulence Index, Complementarity Groups, PhREEPred, SocialViruses."}, {"id": "5", "title": "Genome-guided triage", "short": "Genome-guided triage", "status": "conditional", "why": "Use when target bacterial genome is available but wet-lab screening is incomplete or too slow.", "inputs": "Target isolate genome plus trained model or reference interaction dataset.", "outputs": "Ranked phage candidates for wet-lab confirmation.", "tools": "Keith-style predictive therapy, Gaborieau-style genomic recommender, future in-house models."}, {"id": "6", "title": "Biological-context validation", "short": "Context validation", "status": "planned", "why": "Final decision should be validated under the biological condition that matters for the project.", "inputs": "Top candidate cocktails, biofilm/mucosal model, MOI/dose matrix, repeat exposure design.", "outputs": "Validated lead cocktail and experimental rationale.", "tools": "Biofilm assays, MOI sensitivity, repeat dosing, relevant host-context models."}, {"id": "7", "title": "Decision record and lab learning loop", "short": "Decision record", "status": "planned", "why": "Every rejected and selected phage teaches the next design cycle.", "inputs": "All matrices, QC records, failed combinations, successful candidates.", "outputs": "Versioned lab decision record and publishable comparison dataset.", "tools": "Lab wiki, GitHub/OSF, versioned CSVs, figure templates."}];
+const phages = [{"id": "PHG-01", "species": "S. aureus", "sequenced": "Yes", "qc": "Pass", "receptor": "WTA-like hint", "pka": "Complete", "notes": "Demo candidate; broad SA coverage"}, {"id": "PHG-02", "species": "S. aureus", "sequenced": "Unknown", "qc": "", "receptor": "", "pka": "Not started", "notes": "Sequencing status needs audit"}, {"id": "PHG-03", "species": "S. aureus", "sequenced": "Yes", "qc": "Needs review", "receptor": "Unknown", "pka": "Complete", "notes": "Genome has ambiguous annotation in demo"}, {"id": "PHG-04", "species": "P. aeruginosa", "sequenced": "No", "qc": "", "receptor": "", "pka": "Not started", "notes": "Prioritize WGS if active in screen"}, {"id": "PHG-05", "species": "P. aeruginosa", "sequenced": "Yes", "qc": "Pass", "receptor": "Type IV pilus-like hint", "pka": "Partial", "notes": "Potential receptor-diverse candidate"}, {"id": "PHG-06", "species": "P. aeruginosa", "sequenced": "Unknown", "qc": "", "receptor": "", "pka": "Partial", "notes": "Needs inventory confirmation"}];
+const isolates = ["SA-01", "SA-02", "SA-03", "PA-01", "PA-02", "PA-03"];
+const matrix = {"PHG-01": [1, 1, 1, 0, 0, 0], "PHG-02": [1, 0, 1, 0, 0, 0], "PHG-03": [0, 1, 1, 0, 0, 0], "PHG-04": [0, 0, 0, 1, 0, 1], "PHG-05": [0, 0, 0, 1, 1, 1], "PHG-06": [0, 0, 0, 0, 1, 1]};
+const toolMap = [["Only a binary host-range matrix", "Start with Abedon calculators or PhageCocktail", "Step 3"], ["Quantitative PKA or growth curves", "Add PKA/Virulence Index and SocialViruses-style interaction-aware filtering", "Step 4"], ["Kinetic parameters such as adsorption, burst size, latency, MOI", "Use Cocktail or PhREEPred for dynamics and escape-risk thinking", "Step 4"], ["Target bacterial genome but incomplete wet-lab screen", "Use genome-guided triage as a prioritization layer, not final proof", "Step 5"], ["Large phage bank plus automation", "Use HTS screening logic; benchmark against ATP tablet / robotics-CV platforms", "Step 2 to Step 6"], ["Unknown phage sequencing status", "Audit the library first; create pass/fail/unknown labels before downstream claims", "Step 0"]];
+let selectedStep = 0;
+let phageFilter = 'all';
+function el(id) { return document.getElementById(id); }
+function renderFlow(activeIndex=0) {
+  const flow = el('flow');
+  flow.innerHTML = '';
+  steps.forEach((s,i) => {
+    const d = document.createElement('div');
+    d.className = 'step ' + (i === activeIndex ? 'current' : (s.status === 'next' ? 'next' : (s.status === 'conditional' ? 'conditional' : '')));
+    d.onclick = () => { selectedStep = i; renderFlow(i); renderStepDetails(i); };
+    d.innerHTML = `<div class="num">Step ${s.id}</div><div class="title">${s.short}</div><div class="tag">${i===activeIndex?'YOU ARE HERE':s.status}</div>`;
+    flow.appendChild(d);
+    if (i < steps.length-1) { const a=document.createElement('div'); a.className='arrow'; a.innerHTML='&rarr;'; flow.appendChild(a); }
+  });
+}
+function renderStepDetails(i) {
+  const s = steps[i];
+  el('stepDetails').innerHTML = `<h3>Step ${s.id}. ${s.title}</h3>
+  <p><b>Why this step matters:</b> ${s.why}</p>
+  <p><b>Input:</b> ${s.inputs}</p>
+  <p><b>Output:</b> ${s.outputs}</p>
+  <p><b>Relevant tools:</b> ${s.tools}</p>`;
+}
+function readinessStep() {
+  const hasSeqStatus = el('hasSeqStatus').checked;
+  const hasFastas = el('hasFastas').checked;
+  const hasMatrix = el('hasMatrix').checked;
+  const hasCurves = el('hasCurves').checked;
+  const hasTargetGenome = el('hasTargetGenome').checked;
+  if (!hasSeqStatus) return 0;
+  if (!hasFastas) return 1;
+  if (!hasMatrix) return 2;
+  if (!hasCurves) return 3;
+  if (hasTargetGenome) return 5;
+  return 4;
+}
+function renderReadiness() {
+  const i = readinessStep();
+  renderFlow(i); renderStepDetails(i);
+  let s = steps[i];
+  let msg = `<b>Active step suggested by checklist:</b> Step ${s.id}, ${s.title}.<br>`;
+  if (i === 0) msg += 'Immediate demo action: build a phage-library inventory and label sequencing status as Yes / No / Unknown.';
+  if (i === 1) msg += 'Immediate demo action: collect FASTA files and run genome safety QC.';
+  if (i === 2) msg += 'Immediate demo action: standardize the host-range matrix template.';
+  if (i === 3) msg += 'Immediate demo action: run a transparent baseline optimizer.';
+  if (i === 4) msg += 'Immediate demo action: add resistance, receptor, and interaction filters.';
+  if (i === 5) msg += 'Immediate demo action: use genome-guided prediction only as triage, then confirm experimentally.';
+  el('readinessResult').innerHTML = msg;
+}
+function renderToolMap() {
+  let h = '<thead><tr><th>Data situation</th><th>Recommended route</th><th>Pipeline step</th></tr></thead><tbody>';
+  toolMap.forEach(r => h += `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge">${r[2]}</span></td></tr>`);
+  h += '</tbody>'; el('toolMap').innerHTML = h;
+}
+function renderKpis() {
+  el('kPhages').textContent = phages.length;
+  el('kSeq').textContent = phages.filter(p=>p.sequenced==='Yes').length;
+  el('kPass').textContent = phages.filter(p=>p.qc==='Pass').length;
+  el('kUnknown').textContent = phages.filter(p=>p.sequenced==='Unknown').length;
+}
+function statusClass(v) {
+  if (v === 'Pass' || v === 'Yes' || v === 'Complete') return 'status-pass';
+  if (v === 'Needs review' || v === 'No' || v === 'Partial') return 'status-warn';
+  if (v === 'Unknown' || v === '' || v === 'Not started') return 'status-unknown';
+  return '';
+}
+function filterPhages(mode) { phageFilter = mode; renderPhageTable(); }
+function renderPhageTable() {
+  let rows = phages;
+  if (phageFilter === 'needsSeq') rows = phages.filter(p=>p.sequenced !== 'Yes');
+  if (phageFilter === 'ready') rows = phages.filter(p=>p.sequenced === 'Yes' && p.qc === 'Pass');
+  let cols = ['id','species','sequenced','qc','receptor','pka','notes'];
+  let names = ['Phage ID','Target species','Sequenced?','Genome QC','Receptor hint','PKA status','Notes'];
+  let h = '<thead><tr>' + names.map(n=>`<th>${n}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(r => {
+    h += '<tr>' + cols.map(c=>`<td class="${statusClass(r[c])}">${r[c]||''}</td>`).join('') + '</tr>';
+  });
+  h += '</tbody>'; el('phageTable').innerHTML = h;
+}
+function renderMatrix() {
+  let h = '<thead><tr><th>Phage</th>' + isolates.map(i=>`<th>${i}</th>`).join('') + '<th>Coverage</th></tr></thead><tbody>';
+  Object.keys(matrix).forEach(p => {
+    const vals = matrix[p];
+    const cov = vals.reduce((a,b)=>a+b,0) + '/' + vals.length;
+    h += `<tr><td><b>${p}</b></td>` + vals.map(v=>`<td class="${v? 'cell1':'cell0'}">${v}</td>`).join('') + `<td>${cov}</td></tr>`;
+  });
+  h += '</tbody>'; el('matrixTable').innerHTML = h;
+}
+function suggestCocktail() {
+  let uncovered = new Set(isolates);
+  let chosen = [];
+  let remaining = Object.keys(matrix);
+  while (uncovered.size > 0 && remaining.length > 0) {
+    let best = null, bestGain = -1;
+    remaining.forEach(p => {
+      let gain = 0;
+      matrix[p].forEach((v,idx) => { if (v && uncovered.has(isolates[idx])) gain++; });
+      if (gain > bestGain) { bestGain = gain; best = p; }
+    });
+    if (bestGain <= 0) break;
+    chosen.push(best);
+    matrix[best].forEach((v,idx)=>{ if(v) uncovered.delete(isolates[idx]); });
+    remaining = remaining.filter(p=>p!==best);
+  }
+  const covered = isolates.length - uncovered.size;
+  el('cocktailResult').innerHTML = `<p><b>Greedy baseline cocktail:</b> ${chosen.join(' + ')}</p>
+  <p><b>Demo coverage:</b> ${covered}/${isolates.length} isolates.</p>
+  <p><b>Next real step:</b> do not stop here. Move to Step 4 and filter by genome safety, receptor diversity, PKA synergy/antagonism, and resistance escape risk.</p>`;
+}
+function resetCocktail() { el('cocktailResult').innerHTML = 'Click "Suggest baseline cocktail" to run the demo.'; }
+['hasInventory','hasSeqStatus','hasFastas','hasMatrix','hasCurves','hasTargetGenome'].forEach(id=>el(id).addEventListener('change',renderReadiness));
+renderFlow(0); renderStepDetails(0); renderReadiness(); renderToolMap(); renderKpis(); renderPhageTable(); renderMatrix();
+</script>
+</body>
+</html>
